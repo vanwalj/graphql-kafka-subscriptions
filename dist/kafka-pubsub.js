@@ -14,9 +14,9 @@ var Logger = require("bunyan");
 var child_logger_1 = require("./child-logger");
 var pubsub_async_iterator_1 = require("./pubsub-async-iterator");
 var defaultLogger = Logger.createLogger({
-    name: 'pubsub',
+    name: "pubsub",
     stream: process.stdout,
-    level: 'info'
+    level: "info"
 });
 var KafkaPubSub = (function () {
     function KafkaPubSub(options) {
@@ -24,7 +24,7 @@ var KafkaPubSub = (function () {
         this.subscriptionMap = {};
         this.channelSubscriptions = {};
         this.consumer = this.createConsumer(this.options.topic);
-        this.logger = child_logger_1.createChildLogger(this.options.logger || defaultLogger, 'KafkaPubSub');
+        this.logger = child_logger_1.createChildLogger(this.options.logger || defaultLogger, "KafkaPubSub");
     }
     KafkaPubSub.prototype.publish = function (payload) {
         this.producer = this.producer || this.createProducer(this.options.topic);
@@ -58,24 +58,24 @@ var KafkaPubSub = (function () {
     };
     KafkaPubSub.prototype.createProducer = function (topic) {
         var _this = this;
-        var producer = Kafka.Producer.createWriteStream({
-            'metadata.broker.list': this.options.host + ":" + this.options.port
+        var producer = Kafka.createWriteStream({
+            "metadata.broker.list": this.options.host + ":" + this.options.port
         }, {}, { topic: topic });
-        producer.on('error', function (err) {
-            _this.logger.error(err, 'Error in our kafka stream');
+        producer.on("error", function (err) {
+            _this.logger.error(err, "Error in our kafka stream");
         });
         return producer;
     };
     KafkaPubSub.prototype.createConsumer = function (topic) {
         var _this = this;
         var groupId = this.options.groupId || Math.ceil(Math.random() * 9999);
-        var consumer = Kafka.KafkaConsumer.createReadStream({
-            'group.id': "kafka-group-" + groupId,
-            'metadata.broker.list': this.options.host + ":" + this.options.port,
+        var consumer = Kafka.createReadStream({
+            "group.id": "kafka-group-" + groupId,
+            "metadata.broker.list": this.options.host + ":" + this.options.port
         }, {}, {
             topics: [topic]
         });
-        consumer.on('data', function (message) {
+        consumer.on("data", function (message) {
             var parsedMessage = JSON.parse(message.value.toString());
             if (parsedMessage.channel) {
                 var channel = parsedMessage.channel, payload = __rest(parsedMessage, ["channel"]);

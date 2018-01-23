@@ -1,7 +1,7 @@
 /// <reference types="bunyan" />
 /// <reference types="node" />
-import { PubSubEngine } from 'graphql-subscriptions';
-import * as Logger from 'bunyan';
+import { PubSubEngine } from "graphql-subscriptions";
+import * as Logger from "bunyan";
 export interface IKafkaOptions {
     topic: string;
     host: string;
