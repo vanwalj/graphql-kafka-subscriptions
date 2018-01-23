@@ -1,5 +1,5 @@
 {
-  "name": "graphql-kafka-subscriptions",
+  "name": "@swapcard/graphql-kafka-subscriptions",
   "version": "0.2.2",
   "description": "Apollo graphql subscription over Kafka protocol",
   "main": "dist/index.js",
