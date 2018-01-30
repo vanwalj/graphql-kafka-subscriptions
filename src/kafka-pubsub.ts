@@ -1,15 +1,14 @@
-import * as Kafka from "node-rdkafka";
-import { PubSubEngine } from "graphql-subscriptions";
 import * as Logger from "bunyan";
+import { PubSubEngine } from "graphql-subscriptions";
+import * as Kafka from "node-rdkafka";
 import { createChildLogger } from "./child-logger";
 import { PubSubAsyncIterator } from "./pubsub-async-iterator";
 
 export interface IKafkaOptions {
   topic: string;
-  host: string;
-  port: string;
+  brokerList: string;
   logger?: Logger;
-  groupId?: any;
+  groupId?: number;
 }
 
 export interface IKafkaProducer {
@@ -22,48 +21,46 @@ export interface IKafkaTopic {
 }
 
 const defaultLogger = Logger.createLogger({
+  level: "info",
   name: "pubsub",
   stream: process.stdout,
-  level: "info"
 });
 
-export class KafkaPubSub implements PubSubEngine {
+export class KafkaPubSub<T> implements PubSubEngine {
   protected producer: any;
   protected consumer: any;
-  protected options: any;
-  protected subscriptionMap: { [subId: number]: [string, Function] };
-  protected channelSubscriptions: { [channel: string]: Array<number> };
+  protected options: IKafkaOptions;
+  protected subscriptionMap: Array<[string, (message: T) => void]>;
+  protected channelSubscriptions: { [channel: string]: number[] };
   protected logger: Logger;
 
   constructor(options: IKafkaOptions) {
     this.options = options;
-    this.subscriptionMap = {};
+    this.subscriptionMap = [];
     this.channelSubscriptions = {};
     this.consumer = this.createConsumer(this.options.topic);
     this.logger = createChildLogger(
       this.options.logger || defaultLogger,
-      "KafkaPubSub"
+      "KafkaPubSub",
     );
   }
 
-  public publish(payload) {
+  public publish(channel: string, payload: T) {
     // only create producer if we actually publish something
     this.producer = this.producer || this.createProducer(this.options.topic);
-    return this.producer.write(new Buffer(JSON.stringify(payload)));
+    return this.producer.write(
+      new Buffer(JSON.stringify({ channel, payload })),
+    );
   }
 
-  public subscribe(
-    channel: string,
-    onMessage: Function,
-    options?: Object
-  ): Promise<number> {
-    const index = Object.keys(this.subscriptionMap).length;
-    this.subscriptionMap[index] = [channel, onMessage];
+  public async subscribe(channel: string, onMessage: () => void, options?: {}) {
+    const index = this.subscriptionMap.length;
+    this.subscriptionMap.push([channel, onMessage]);
     this.channelSubscriptions[channel] = [
       ...(this.channelSubscriptions[channel] || []),
-      index
+      index,
     ];
-    return Promise.resolve(index);
+    return index;
   }
 
   public unsubscribe(index: number) {
@@ -73,11 +70,11 @@ export class KafkaPubSub implements PubSubEngine {
     ].filter(subId => subId !== index);
   }
 
-  public asyncIterator<T>(triggers: string | string[]): AsyncIterator<T> {
-    return new PubSubAsyncIterator<T>(this, triggers);
+  public asyncIterator(triggers: string | string[]) {
+    return new PubSubAsyncIterator(this, triggers);
   }
 
-  private onMessage(channel: string, message) {
+  private onMessage(channel: string, message: T) {
     const subscriptions = this.channelSubscriptions[channel];
     if (!subscriptions) {
       return;
@@ -91,10 +88,10 @@ export class KafkaPubSub implements PubSubEngine {
   private createProducer(topic: string) {
     const producer = Kafka.createWriteStream(
       {
-        "metadata.broker.list": `${this.options.host}:${this.options.port}`
+        "metadata.broker.list": this.options.brokerList,
       },
       {},
-      { topic }
+      { topic },
     );
     producer.on("error", err => {
       this.logger.error(err, "Error in our kafka stream");
@@ -108,25 +105,21 @@ export class KafkaPubSub implements PubSubEngine {
     const consumer = Kafka.createReadStream(
       {
         "group.id": `kafka-group-${groupId}`,
-        "metadata.broker.list": `${this.options.host}:${this.options.port}`
+        "metadata.broker.list": this.options.brokerList,
       },
       {},
       {
-        topics: [topic]
-      }
+        topics: [topic],
+      },
     );
     consumer.on("data", message => {
-      let parsedMessage = JSON.parse(message.value.toString());
+      const parsedMessage: { channel: string; payload: T } = JSON.parse(
+        message.value.toString(),
+      );
 
       // Using channel abstraction
-      if (parsedMessage.channel) {
-        const { channel, ...payload } = parsedMessage;
-        this.onMessage(parsedMessage.channel, payload);
-
-        // No channel abstraction, publish over the whole topic
-      } else {
-        this.onMessage(topic, parsedMessage);
-      }
+      const { channel, payload } = parsedMessage;
+      this.onMessage(parsedMessage.channel, payload);
     });
     return consumer;
   }

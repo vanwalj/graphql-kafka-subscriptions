@@ -1,13 +1,12 @@
 /// <reference types="bunyan" />
 /// <reference types="node" />
-import { PubSubEngine } from "graphql-subscriptions";
 import * as Logger from "bunyan";
+import { PubSubEngine } from "graphql-subscriptions";
 export interface IKafkaOptions {
     topic: string;
-    host: string;
-    port: string;
+    brokerList: string;
     logger?: Logger;
-    groupId?: any;
+    groupId?: number;
 }
 export interface IKafkaProducer {
     write: (input: Buffer) => any;
@@ -16,22 +15,20 @@ export interface IKafkaTopic {
     readStream: any;
     writeStream: any;
 }
-export declare class KafkaPubSub implements PubSubEngine {
+export declare class KafkaPubSub<T> implements PubSubEngine {
     protected producer: any;
     protected consumer: any;
-    protected options: any;
-    protected subscriptionMap: {
-        [subId: number]: [string, Function];
-    };
+    protected options: IKafkaOptions;
+    protected subscriptionMap: Array<[string, (message: T) => void]>;
     protected channelSubscriptions: {
-        [channel: string]: Array<number>;
+        [channel: string]: number[];
     };
     protected logger: Logger;
     constructor(options: IKafkaOptions);
-    publish(payload: any): any;
-    subscribe(channel: string, onMessage: Function, options?: Object): Promise<number>;
+    publish(channel: string, payload: T): any;
+    subscribe(channel: string, onMessage: () => void, options?: {}): Promise<number>;
     unsubscribe(index: number): void;
-    asyncIterator<T>(triggers: string | string[]): AsyncIterator<T>;
+    asyncIterator(triggers: string | string[]): any;
     private onMessage(channel, message);
     private createProducer(topic);
     private createConsumer(topic);

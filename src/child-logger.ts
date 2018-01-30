@@ -1,8 +1,11 @@
-import * as Logger from 'bunyan';
+import * as Logger from "bunyan";
 
 export function createChildLogger(logger: Logger, className: string) {
-  return logger.child({
-    child: 'kafka-pubsub',
-    'class': className,
-  }, true)
+  return logger.child(
+    {
+      child: "kafka-pubsub",
+      class: className,
+    },
+    true,
+  );
 }
